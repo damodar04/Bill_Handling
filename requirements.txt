@@ -1,0 +1,6 @@
+streamlit
+pandas
+requests
+jsonschema
+google-cloud-vision
+shutil
