@@ -1,6 +1,10 @@
 streamlit
+google-cloud-vision
 pandas
 requests
-jsonschema
-google-cloud-vision
+json
+re
 shutil
+io
+xlsxwriter
+zipfile36
