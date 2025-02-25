@@ -10,7 +10,16 @@ import re
 import shutil
 
 # Set Google OCR Credentials
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\a\Desktop\IMP\google_key\textextract-1-09be363085ce.json"
+# Load credentials from Streamlit secrets
+google_credentials = json.loads(st.secrets["google_cloud"]["credentials"])
+
+# Save credentials to a temporary file
+with open("google_key.json", "w") as f:
+    json.dump(google_credentials, f)
+
+# Set environment variable
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_key.json"
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\a\Desktop\IMP\google_key\textextract-1-09be363085ce.json"
 
 # Initialize Google OCR Client
 client = vision.ImageAnnotatorClient()
