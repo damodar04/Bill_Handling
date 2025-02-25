@@ -1,15 +1,6 @@
 streamlit
-google-cloud-vision
 pandas
 requests
-json
-re
-shutil
-io
-xlsxwriter
-zipfile36
-streamlit
 google-cloud-vision
-pandas
-requests
 xlsxwriter
+openpyxl
