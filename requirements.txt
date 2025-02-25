@@ -8,3 +8,8 @@ shutil
 io
 xlsxwriter
 zipfile36
+streamlit
+google-cloud-vision
+pandas
+requests
+xlsxwriter
