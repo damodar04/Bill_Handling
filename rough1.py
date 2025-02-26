@@ -36,7 +36,6 @@ def extract_text_from_image(image_path):
     response = client.text_detection(image=image)
     texts = response.text_annotations
     extracted_text = texts[0].description if texts else ""
-    # st.write(f"Extracted text from {image_path}: {extracted_text[:100]}...")  # Debug
     return extracted_text
 
 
@@ -92,15 +91,29 @@ def process_text_with_huggingface(text):
         st.error(f"Error parsing response: {e}")
         return {}
 
+
+# Function to extract images from zip file, including subfolders
+def extract_images_from_zip(zip_file):
+    extracted_files = []
+    with zipfile.ZipFile(zip_file, "r") as zip_ref:
+        # Traverse through all files in the zip
+        for file_info in zip_ref.infolist():
+            # Check if the file is an image and avoid extracting folder names
+            if file_info.filename.lower().endswith((".png", ".jpg", ".jpeg")):
+                extracted_files.append(file_info.filename)
+                zip_ref.extract(file_info.filename, "extracted_bills")
+    return extracted_files
+
+
 # Streamlit UI
 st.title("Expense Bill Extractor")
 
 uploaded_file = st.file_uploader("Upload a zip file of scanned bills", type="zip")
 
 if uploaded_file:
-    st.write("Extracting ZIP file...")  # Debugging
+    st.write("Extracting ZIP file...")
 
-    # Extract files
+    # Clear previous extraction
     extract_dir = "extracted_bills"
     if os.path.exists(extract_dir):
         for file in os.listdir(extract_dir):
@@ -110,27 +123,30 @@ if uploaded_file:
             else:
                 os.remove(file_path)  # ✅ Delete files
 
-    with zipfile.ZipFile(uploaded_file, "r") as zip_ref:
-        zip_ref.extractall(extract_dir)
-
-    st.write("Extracted files:", os.listdir(extract_dir))  # Debugging
+    # Extract images from the zip file
+    extracted_files = extract_images_from_zip(uploaded_file)
+    
+    if not extracted_files:
+        st.warning("No image files found in the ZIP.")
+    else:
+        st.write("Extracted files:", extracted_files)
 
     extracted_data = []
 
-    for file in os.listdir(extract_dir):
-        if file.endswith((".png", ".jpg", ".jpeg")):
-            file_path = os.path.join(extract_dir, file)
-            extracted_text = extract_text_from_image(file_path)
-            if not extracted_text:
-                st.error(f"Failed to extract text from {file}")
-                continue
+    # Process each image in the extracted list
+    for file in extracted_files:
+        file_path = os.path.join(extract_dir, file)
+        extracted_text = extract_text_from_image(file_path)
+        if not extracted_text:
+            st.error(f"Failed to extract text from {file}")
+            continue
 
-            structured_data = process_text_with_huggingface(extracted_text)
+        structured_data = process_text_with_huggingface(extracted_text)
 
-            if structured_data:
-                extracted_data.append(structured_data)
-            else:
-                st.warning(f"Could not process {file}")
+        if structured_data:
+            extracted_data.append(structured_data)
+        else:
+            st.warning(f"Could not process {file}")
 
     # Create DataFrame and Export to Excel
     if extracted_data:
@@ -151,5 +167,4 @@ if uploaded_file:
         st.error("No structured data extracted.")
 
 st.write("Upload a zip file containing scanned images of expense bills.")
-
 
