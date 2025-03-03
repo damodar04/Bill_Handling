@@ -10,6 +10,10 @@ from google.cloud import vision
 import re
 import shutil
 
+# Ensure 'static/' directory exists
+if not os.path.exists("static"):
+    os.makedirs("static")
+
 # Set Google OCR Credentials
 # Load credentials from Streamlit secrets
 google_credentials = json.loads(st.secrets["google_cloud"]["credentials"])
