@@ -9,6 +9,7 @@ import json
 from google.cloud import vision
 import re
 import shutil
+from streamlit import spinner
 
 # Ensure 'static/' directory exists
 if not os.path.exists("static"):
@@ -203,49 +204,87 @@ def extract_images_from_pdf(pdf_path, output_folder="extracted_images"):
     return extracted_files
 
 # Streamlit UI
+# Custom CSS for background and text color
+# Custom CSS for background and text color
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #FFF5E1 !important;  /* Cream background */
+        color: black !important;
+    }
+    .stSidebar {
+        background-color: #333 !important; /* Dark gray sidebar */
+        color: white !important;
+    }
+    .stButton>button {
+        background-color: #ff5733 !important; /* Orange button */
+        color: white !important;
+    }
+    .stDataFrame table {
+        background-color: rgba(255, 245, 225, 0) !important; /* Fully transparent background */
+        color: black !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 st.title("Expense Bill Extractor")
 
-uploaded_file = st.file_uploader("Upload a zip file of scanned bills or a PDF", type=["zip", "pdf"])
+# Sidebar with icons
+st.sidebar.title("Upload Section")
+st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/upload.png", width=50)
+uploaded_file = st.sidebar.file_uploader("Upload a zip file of scanned bills or a PDF", type=["zip", "pdf"])
+
+st.sidebar.title("Categories")
+st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/restaurant.png", width=100)
+st.sidebar.write("Food Bills")
+st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/airport.png", width=100)
+st.sidebar.write("Flight Bills")
+st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/taxi.png", width=100)
+st.sidebar.write("Cab Bills")
 
 if uploaded_file:
-    st.write("Processing uploaded file...")
+    with spinner("Processing uploaded file..."):
+        extract_dir = "extracted_bills"
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+        os.makedirs(extract_dir, exist_ok=True)
 
-    extract_dir = "extracted_bills"
-    if os.path.exists(extract_dir):
-        shutil.rmtree(extract_dir)
-    os.makedirs(extract_dir, exist_ok=True)
+        extracted_files = []
 
-    extracted_files = []
+        if uploaded_file.name.endswith(".zip"):
+            extracted_images, extracted_pdfs = extract_images_from_zip(uploaded_file)  # Separate images & PDFs
+        else:  # Direct PDF upload
+            extracted_pdfs = [os.path.join("extracted_bills", "uploaded.pdf")]
+            with open(extracted_pdfs[0], "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            extracted_images = []  # No direct images if a single PDF is uploaded
 
-    if uploaded_file.name.endswith(".zip"):
-        extracted_images, extracted_pdfs = extract_images_from_zip(uploaded_file)  # Separate images & PDFs
-    else:  # Direct PDF upload
-        extracted_pdfs = [os.path.join("extracted_bills", "uploaded.pdf")]
-        with open(extracted_pdfs[0], "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        extracted_images = []  # No direct images if a single PDF is uploaded
+        # Process PDFs only once here (outside the zip function)
+        for pdf in extracted_pdfs:
+            extracted_images += extract_images_from_pdf(pdf)  # Convert PDF to images
 
-    # Process PDFs only once here (outside the zip function)
-    for pdf in extracted_pdfs:
-        extracted_images += extract_images_from_pdf(pdf)  # Convert PDF to images
+        # Now extracted_images contains images from both direct uploads & PDFs
+        if not extracted_images:
+            st.warning("No valid images found in the file.")
+        else:
+        #    st.write("Extracted files:", extracted_images)
+            extracted_filenames = [os.path.basename(file) for file in extracted_images]
+            st.write("Extracted files:", extracted_filenames)
+        # Process extracted images
+        extracted_data = []
+        for file in extracted_images:
+            extracted_text = extract_text_from_image(file)
+            if not extracted_text:
+                continue  # Skip empty texts
 
-    # Now extracted_images contains images from both direct uploads & PDFs
-    if not extracted_images:
-        st.warning("No valid images found in the file.")
-    else:
-        st.write("Extracted files:", extracted_images)
+            structured_data = process_text_with_huggingface(extracted_text)
+            if structured_data:
+                extracted_data.append(structured_data)
 
-    # Process extracted images
-    extracted_data = []
-    for file in extracted_images:
-        extracted_text = extract_text_from_image(file)
-        if not extracted_text:
-            continue  # Skip empty texts
-
-        structured_data = process_text_with_huggingface(extracted_text)
-        if structured_data:
-            extracted_data.append(structured_data)
-
+    # Display output table in the main area
     if extracted_data:
         df = pd.DataFrame(extracted_data)
         df.drop_duplicates(inplace=True)  # Remove duplicate rows
@@ -265,6 +304,4 @@ if uploaded_file:
         )
     else:
         st.error("No structured data extracted.")
-
-st.write("Upload a zip file containing scanned images of expense bills.")
 
