@@ -2,6 +2,7 @@ import streamlit as st
 import zipfile
 import os
 import io
+import fitz
 import pandas as pd
 import requests
 import json
