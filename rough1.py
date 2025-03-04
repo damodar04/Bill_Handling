@@ -28,10 +28,11 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_key.json"
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\a\Desktop\IMP\google_key\textextract-1-09be363085ce.json"
 
 # Initialize Google OCR Client
+# Initialize Google OCR Client
 client = vision.ImageAnnotatorClient()
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY = "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"
+HUGGINGFACE_API_KEY = "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"
 
 # Define unwanted keywords to ignore instructional images
 UNWANTED_KEYWORDS = ["instructions", "terms", "guidelines", "help", "support", "important"]
@@ -69,9 +70,9 @@ def process_text_with_huggingface(text):
 
            Ensure that:
            - The "Time" field is strictly in the format **HH:MM** (12-hour format strictly) (without AM/PM). If the time is unavailable or incorrectly formatted, return an empty string "".
-           - The "Time (AM/PM)" field should contain **only** "AM" or "PM" (no hours or minutes). If the time is unavailable, return an empty string "".        - The "Date" must be strictly formatted as **DD-MM-YYYY**, ensuring the month (MM) is always represented in **numbers (01-12)** and never in words. Ensure (YYYY) is always a full **four-digit year (2020)** and never in the format **(20)**. If the date is unavailable, leave this field blank ""—do not infer or approximate it.
+           - The "Time (AM/PM)" field should contain **only** "AM" or "PM" (no hours or minutes). If the time is unavailable, return an empty string "".        - The "Date" must be strictly formatted as **DD-MM-YYYY**, ensuring the month (MM) is always represented in **numbers (01-12)** and never in words. Ensure (YYYY) is always a full **four-digit year (2020)** and never in the format **(20)**. If the date is unavailable, leave this field blank ""âdo not infer or approximate it.
            - The "Bill Type" must be one of the following categories: **"food", "flight", or "cab"**. If it does not fit into these categories, return an empty string "".
-           - The "Bill Amount" should include the **currency symbol** (e.g., **$100, ₹500, €30**). If the currency is missing, do not infer it—return an empty string "".
+           - The "Bill Amount" should include the **currency symbol** (e.g., **$100, â¹500, â¬30**). If the currency is missing, do not infer itâreturn an empty string "".
            - The "Details" field should:
               - Contain the **restaurant name** if the "Bill Type" is **food**.
               - Contain the **"From - To"** locations if the "Bill Type" is **cab" or **flight**, inferred from terms like "From," "To," "Departure," "Arrival," or similar.
@@ -103,7 +104,7 @@ def process_text_with_huggingface(text):
                "Time": "03:45",
                "Time (AM/PM)": "PM",
                "Bill Type": "food",
-               "Bill Amount": "₹ 500",
+               "Bill Amount": "â¹ 500",
                "Details": "XYZ Restaurant"
            }}
            ```
@@ -235,7 +236,11 @@ st.title("Expense Bill Extractor")
 # Sidebar with icons
 st.sidebar.title("Upload Section")
 st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/upload.png", width=50)
-uploaded_file = st.sidebar.file_uploader("Upload a zip file of scanned bills or a PDF", type=["zip", "pdf"])
+uploaded_file = st.sidebar.file_uploader(
+    "Upload a zip file of scanned bills or a PDF", 
+    type=["zip", "pdf"], 
+    key="unique_file_uploader"
+)
 
 st.sidebar.title("Categories")
 st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/restaurant.png", width=100)
@@ -245,64 +250,79 @@ st.sidebar.write("Flight Bills")
 st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/taxi.png", width=100)
 st.sidebar.write("Cab Bills")
 
+# uploaded_file = st.sidebar.file_uploader(
+#     "Upload a zip file of scanned bills or a PDF", 
+#     type=["zip", "pdf"], 
+#     key="unique_file_uploader"
+# )
+
+# Variable to store extracted filenames
+extracted_filenames = []
+extracted_images = []
+extracted_pdfs = []
+
 if uploaded_file:
-    with spinner("Processing uploaded file..."):
-        extract_dir = "extracted_bills"
-        if os.path.exists(extract_dir):
-            shutil.rmtree(extract_dir)
-        os.makedirs(extract_dir, exist_ok=True)
+    st.sidebar.success("File uploaded successfully! â")
+    
+    # Create an extraction directory
+    extract_dir = "extracted_bills"
+    if os.path.exists(extract_dir):
+        shutil.rmtree(extract_dir)
+    os.makedirs(extract_dir, exist_ok=True)
 
-        extracted_files = []
+    # Extract files but don't process yet
+    if uploaded_file.name.endswith(".zip"):
+        extracted_images, extracted_pdfs = extract_images_from_zip(uploaded_file)  
+    else:  
+        extracted_pdfs = [os.path.join(extract_dir, "uploaded.pdf")]
+        with open(extracted_pdfs[0], "wb") as f:
+            f.write(uploaded_file.getbuffer())
 
-        if uploaded_file.name.endswith(".zip"):
-            extracted_images, extracted_pdfs = extract_images_from_zip(uploaded_file)  # Separate images & PDFs
-        else:  # Direct PDF upload
-            extracted_pdfs = [os.path.join("extracted_bills", "uploaded.pdf")]
-            with open(extracted_pdfs[0], "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            extracted_images = []  # No direct images if a single PDF is uploaded
+    # Extract images from PDFs
+    for pdf in extracted_pdfs:
+        extracted_images += extract_images_from_pdf(pdf)  
 
-        # Process PDFs only once here (outside the zip function)
-        for pdf in extracted_pdfs:
-            extracted_images += extract_images_from_pdf(pdf)  # Convert PDF to images
-
-        # Now extracted_images contains images from both direct uploads & PDFs
-        if not extracted_images:
-            st.warning("No valid images found in the file.")
-        else:
-        #    st.write("Extracted files:", extracted_images)
-            extracted_filenames = [os.path.basename(file) for file in extracted_images]
-            st.write("Extracted files:", extracted_filenames)
-        # Process extracted images
-        extracted_data = []
-        for file in extracted_images:
-            extracted_text = extract_text_from_image(file)
-            if not extracted_text:
-                continue  # Skip empty texts
-
-            structured_data = process_text_with_huggingface(extracted_text)
-            if structured_data:
-                extracted_data.append(structured_data)
-
-    # Display output table in the main area
-    if extracted_data:
-        df = pd.DataFrame(extracted_data)
-        df.drop_duplicates(inplace=True)  # Remove duplicate rows
-        df.reset_index(drop=True, inplace=True)  # Reset index
-        st.write(df)
-
-        excel_file = io.BytesIO()
-        with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False)
-        excel_file.seek(0)
-
-        st.download_button(
-            label="Download Extracted Data as Excel",
-            data=excel_file,
-            file_name="expense_report.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+    if not extracted_images:
+        st.warning("No valid images found in the file.")
     else:
-        st.error("No structured data extracted.")
+        extracted_filenames = [os.path.basename(file) for file in extracted_images]
+        st.write("Extracted Files:")
+        st.write(extracted_filenames)  # Show filenames
+
+    # Show the "Process" button
+    if extracted_filenames:
+        if st.button("Process Extracted Files"):
+            with spinner("Processing extracted files..."):
+                extracted_data = []
+                for file in extracted_images:
+                    extracted_text = extract_text_from_image(file)
+                    if not extracted_text:
+                        continue  # Skip empty texts
+
+                    structured_data = process_text_with_huggingface(extracted_text)
+                    if structured_data:
+                        extracted_data.append(structured_data)
+
+            # Display results
+            if extracted_data:
+                df = pd.DataFrame(extracted_data)
+                df.drop_duplicates(inplace=True)  
+                df.reset_index(drop=True, inplace=True)  
+                st.write(df)
+
+                # Prepare downloadable Excel file
+                excel_file = io.BytesIO()
+                with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+                    df.to_excel(writer, index=False)
+                excel_file.seek(0)
+
+                st.download_button(
+                    label="Download Extracted Data as Excel",
+                    data=excel_file,
+                    file_name="expense_report.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            else:
+                st.error("No structured data extracted.")
 
 
