@@ -31,7 +31,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_key.json"
 client = vision.ImageAnnotatorClient()
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY = "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"
+HUGGINGFACE_API_KEY = "hf_eMzaBIkrhUYdFOuMkrKQekNIPvZkoRZvn"
 
 # Define unwanted keywords to ignore instructional images
 UNWANTED_KEYWORDS = ["instructions", "terms", "guidelines", "help", "support", "important"]
