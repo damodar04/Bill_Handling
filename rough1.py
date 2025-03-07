@@ -81,7 +81,7 @@ def process_text_with_huggingface(text):
               - Convert codes like "INR" → "₹", "USD" → "$", "EUR" → "€".  
               - If the symbol is missing or unrecognized, return "".
             - **Details**:
-              - "food": **only** Extract restaurant name.
+              - "food": **only** Extract restaurant name.**no other information**
               - "flight"/"cab": Extract **only "From: <location> - To: <location>"**.
               - If missing, return "".
 
