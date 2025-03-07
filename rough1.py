@@ -72,13 +72,13 @@ def process_text_with_huggingface(text):
             - **Time**: Format **HH:MM** (12-hour, e.g., 03:45).**Exclude AM/PM**.
             - **Time (AM/PM)**: Extract **only** "AM" or "PM", else "".
             - **Bill Type**: Categorize as **"food"**, **"flight"**, or **"cab"** based on keywords.
-            - "Currency Name": Extract currency code (e.g., USD, INR, EUR) or infer from symbols (e.g., $ â USD, â¹ â INR). 
+            - "Currency Name": Extract currency code (e.g., USD, INR, EUR) or infer from symbols (e.g., $ → USD, ₹ → INR). 
               - should **not include** any other number or alphabet other than currency symbol
               - If unavailable, return "".
-           - "Bill Amount": Extract as **<currency symbol><amount>** (e.g., $25, â¹500). 
+           - "Bill Amount": Extract as **<currency symbol><amount>** (e.g., $25, ₹500). 
               - Include symbol if present; otherwise, return numeric amount only (e.g., 25). 
               - **Do not include any other characters, numbers, or alphabets.**
-              - Convert codes like "INR" â "â¹", "USD" â "$", "EUR" â "â¬".  
+              - Convert codes like "INR" → "₹", "USD" → "$", "EUR" → "€".  
               - If the symbol is missing or unrecognized, return "".
             - **Details**:
               - "food": **only** Extract restaurant name.
@@ -102,7 +102,7 @@ def process_text_with_huggingface(text):
                "Time (AM/PM)": "PM",
                "Bill Type": "food",
                "Currency Name": "INR",
-               "Bill Amount": "â¹ 500",
+               "Bill Amount": "₹ 500",
                "Details": "XYZ Restaurant"
            }}
            Example Input:
@@ -110,7 +110,7 @@ def process_text_with_huggingface(text):
            Bill: Airline Ticket
            Date: 2024-03-10
            Time: 22:15
-           Amount: â¬120
+           Amount: €120
            Departure: London Heathrow
            Arrival: Paris CDG
            '''
@@ -122,7 +122,7 @@ def process_text_with_huggingface(text):
             "Time (AM/PM)": "PM",
             "Bill Type": "flight",
             "Currency Name": "EUR",
-            "Bill Amount": "â¬120",
+            "Bill Amount": "€120",
             "Details": "From: London Heathrow - To: Paris CDG"
             }}
            Example Input:
@@ -280,7 +280,7 @@ extracted_images = []
 extracted_pdfs = []
 
 if uploaded_file:
-    st.sidebar.success("File uploaded successfully! â")
+    st.sidebar.success("File uploaded successfully! ✅")
 
     # Create an extraction directory
     extract_dir = "extracted_bills"
@@ -361,6 +361,3 @@ if uploaded_file:
                 )
             else:
                 st.error("No structured data extracted.")
-
-
-
