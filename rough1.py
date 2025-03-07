@@ -82,7 +82,7 @@ def process_text_with_huggingface(text):
               - If the symbol is missing or unrecognized, return "".
             - **Details**:
               - "food": **only** Extract restaurant name.
-              - "flight"/"cab": Extract **"From: <location> - To: <location>"**.
+              - "flight"/"cab": Extract **only "From: <location> - To: <location>"**.
               - If missing, return "".
 
             Examples:
