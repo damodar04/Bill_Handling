@@ -28,11 +28,10 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_key.json"
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\a\Desktop\IMP\google_key\textextract-1-09be363085ce.json"
 
 # Initialize Google OCR Client
-# Initialize Google OCR Client
 client = vision.ImageAnnotatorClient()
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY = "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"
+HUGGINGFACE_API_KEY = "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"
 
 # Define unwanted keywords to ignore instructional images
 UNWANTED_KEYWORDS = ["instructions", "terms", "guidelines", "help", "support", "important"]
@@ -59,36 +58,35 @@ def extract_text_from_image(image_path):
     return extracted_text
 
 
-# Function to process extracted text using Hugging Face LLM
+# Function to process extracted text using Hugging Face LLM with refined prompt
 def process_text_with_huggingface(text):
     API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
     payload = {
-        "inputs": f"""Extract structured data from the provided bill text.
+        "inputs": f"""Extract structured data from the given bill text with maximum accuracy. 
 
-           Return **only** the JSON output. Do **not** include any explanations, additional text, formatting, or repetitions.
+            Return **only** JSON output without explanations. 
 
-           Ensure that:
-           - The "Time" field is strictly in the format **HH:MM** (12-hour format strictly) (without AM/PM). If the time is unavailable or incorrectly formatted, return an empty string "".
-           - The "Time (AM/PM)" field should contain **only** "AM" or "PM" (no hours or minutes). If the time is unavailable, return an empty string "".        - The "Date" must be strictly formatted as **DD-MM-YYYY**, ensuring the month (MM) is always represented in **numbers (01-12)** and never in words. Ensure (YYYY) is always a full **four-digit year (2020)** and never in the format **(20)**. If the date is unavailable, leave this field blank ""âdo not infer or approximate it.
-           - The "Bill Type" must be one of the following categories: **"food", "flight", or "cab"**. If it does not fit into these categories, return an empty string "".
-           - The "Bill Amount" should include the **currency symbol** (e.g., **$100, â¹500, â¬30**). If the currency is missing, do not infer itâreturn an empty string "".
-           - The "Details" field should:
-              - Contain the **restaurant name** if the "Bill Type" is **food**.
-              - Contain the **"From - To"** locations if the "Bill Type" is **cab" or **flight**, inferred from terms like "From," "To," "Departure," "Arrival," or similar.
-              - If this information is missing, return an empty string "".
-           Respond strictly in this JSON format:
+            ### Rules:
+            - **Date**: Format **DD-MM-YYYY** (e.g., 05-01-2024). Convert formats like DD/MM/YYYY, YYYY-MM-DD, and DD Mon YYYY.
+            - **Time**: Format **HH:MM** (12-hour, e.g., 03:45).**Exclude AM/PM**.
+            - **Time (AM/PM)**: Extract **only** "AM" or "PM", else "".
+            - **Bill Type**: Categorize as **"food"**, **"flight"**, or **"cab"** based on keywords.
+            - "Currency Name": Extract currency code (e.g., USD, INR, EUR) or infer from symbols (e.g., $ â USD, â¹ â INR). 
+              - should **not include** any other number or alphabet other than currency symbol
+              - If unavailable, return "".
+           - "Bill Amount": Extract as **<currency symbol><amount>** (e.g., $25, â¹500). 
+              - Include symbol if present; otherwise, return numeric amount only (e.g., 25). 
+              - **Do not include any other characters, numbers, or alphabets.**
+              - Convert codes like "INR" â "â¹", "USD" â "$", "EUR" â "â¬".  
+              - If the symbol is missing or unrecognized, return "".
+            - **Details**:
+              - "food": **only** Extract restaurant name.
+              - "flight"/"cab": Extract **"From: <location> - To: <location>"**.
+              - If missing, return "".
 
-           {{
-               "Date": "<DD-MM-YYYY or '' if unavailable>",
-               "Time": "<HH:MM or '' if unavailable>",
-               "Time (AM/PM)": "<AM/PM or '' if unavailable>",
-               "Bill Type": "<food/flight/cab or '' if unavailable>",
-               "Bill Amount": "<currency symbol + amount or '' if unavailable>",
-               "Details": "<restaurant name or 'From - To' for flights/cabs or '' if unavailable>"
-           }}
-
-           Example Input:
+            Examples:
+            Example Input:
            ```
            Bill: XYZ Restaurant  
            Date: January 5, 2024  
@@ -96,19 +94,37 @@ def process_text_with_huggingface(text):
            Type: Meal  
            Amount: 500 INR  
            ```
-
            Expected JSON Output:
            ```json
            {{
-               "Date": "05-01-2024",
+               "Date": "05/01/2024",
                "Time": "03:45",
                "Time (AM/PM)": "PM",
                "Bill Type": "food",
+               "Currency Name": "INR",
                "Bill Amount": "â¹ 500",
                "Details": "XYZ Restaurant"
            }}
+           Example Input:
            ```
-
+           Bill: Airline Ticket
+           Date: 2024-03-10
+           Time: 22:15
+           Amount: â¬120
+           Departure: London Heathrow
+           Arrival: Paris CDG
+           '''
+           Expected JSON Output:
+           ```json
+           {{
+            "Date": "10/03/2024",
+            "Time": "10:15",
+            "Time (AM/PM)": "PM",
+            "Bill Type": "flight",
+            "Currency Name": "EUR",
+            "Bill Amount": "â¬120",
+            "Details": "From: London Heathrow - To: Paris CDG"
+            }}
            Example Input:
            ```
            Bill: Uber Ride  
@@ -123,12 +139,13 @@ def process_text_with_huggingface(text):
            Expected JSON Output:
            ```json
            {{
-               "Date": "12-02-2024",
+               "Date": "12/02/2024",
                "Time": "08:30",
                "Time (AM/PM)": "AM",
                "Bill Type": "cab",
+               "Currency Name": "USD",
                "Bill Amount": "$25",
-               "Details": "Downtown - Airport"
+               "Details": "From: Downtown - To: Airport"
            }}
            ```
            ### Bill Text:
@@ -204,6 +221,7 @@ def extract_images_from_pdf(pdf_path, output_folder="extracted_images"):
 
     return extracted_files
 
+
 # Streamlit UI
 # Custom CSS for background and text color
 # Custom CSS for background and text color
@@ -237,8 +255,8 @@ st.title("Expense Bill Extractor")
 st.sidebar.title("Upload Section")
 st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/upload.png", width=50)
 uploaded_file = st.sidebar.file_uploader(
-    "Upload a zip file of scanned bills or a PDF", 
-    type=["zip", "pdf"], 
+    "Upload a zip file of scanned bills or a PDF",
+    type=["zip", "pdf"],
     key="unique_file_uploader"
 )
 
@@ -251,8 +269,8 @@ st.sidebar.image("https://img.icons8.com/ios-filled/50/000000/taxi.png", width=1
 st.sidebar.write("Cab Bills")
 
 # uploaded_file = st.sidebar.file_uploader(
-#     "Upload a zip file of scanned bills or a PDF", 
-#     type=["zip", "pdf"], 
+#     "Upload a zip file of scanned bills or a PDF",
+#     type=["zip", "pdf"],
 #     key="unique_file_uploader"
 # )
 
@@ -263,7 +281,7 @@ extracted_pdfs = []
 
 if uploaded_file:
     st.sidebar.success("File uploaded successfully! â")
-    
+
     # Create an extraction directory
     extract_dir = "extracted_bills"
     if os.path.exists(extract_dir):
@@ -272,15 +290,15 @@ if uploaded_file:
 
     # Extract files but don't process yet
     if uploaded_file.name.endswith(".zip"):
-        extracted_images, extracted_pdfs = extract_images_from_zip(uploaded_file)  
-    else:  
+        extracted_images, extracted_pdfs = extract_images_from_zip(uploaded_file)
+    else:
         extracted_pdfs = [os.path.join(extract_dir, "uploaded.pdf")]
         with open(extracted_pdfs[0], "wb") as f:
             f.write(uploaded_file.getbuffer())
 
     # Extract images from PDFs
     for pdf in extracted_pdfs:
-        extracted_images += extract_images_from_pdf(pdf)  
+        extracted_images += extract_images_from_pdf(pdf)
 
     if not extracted_images:
         st.warning("No valid images found in the file.")
@@ -301,13 +319,32 @@ if uploaded_file:
 
                     structured_data = process_text_with_huggingface(extracted_text)
                     if structured_data:
+
+                        # Separate currency from Bill Amount
+                        bill_amount = structured_data.get("Bill Amount", "")
+                        currency = bill_amount[0] if bill_amount else ""
+                        structured_data["Bill Amount"] = bill_amount[1:].strip() if bill_amount else ""
+
+                        # Add currency name dynamically
+                        structured_data["Currency Name"] = currency
+
+                        # Format "From - To" for flight or cab bills
+                        if structured_data["Bill Type"] in ["flight", "cab"]:
+                            details = structured_data.get("Details", "")
+                            if "from" in details.lower() and "to" in details.lower():
+                                from_to_match = re.search(r"from\s*:\s*(.*?)\s*-\s*to\s*:\s*(.*)", details,
+                                                          re.IGNORECASE)
+                                if from_to_match:
+                                    structured_data[
+                                        "Details"] = f"From: {from_to_match.group(1).strip()} - To: {from_to_match.group(2).strip()}"
+
                         extracted_data.append(structured_data)
 
             # Display results
             if extracted_data:
                 df = pd.DataFrame(extracted_data)
-                df.drop_duplicates(inplace=True)  
-                df.reset_index(drop=True, inplace=True)  
+                df.drop_duplicates(inplace=True)
+                df.reset_index(drop=True, inplace=True)
                 st.write(df)
 
                 # Prepare downloadable Excel file
@@ -324,5 +361,6 @@ if uploaded_file:
                 )
             else:
                 st.error("No structured data extracted.")
+
 
 
