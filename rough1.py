@@ -31,7 +31,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_key.json"
 client = vision.ImageAnnotatorClient()
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY = "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"
+HUGGINGFACE_API_KEY = "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"
 
 # Define unwanted keywords to ignore instructional images
 UNWANTED_KEYWORDS = ["instructions", "terms", "guidelines", "help", "support", "important"]
@@ -81,8 +81,8 @@ def process_text_with_huggingface(text):
               - Convert codes like "INR" → "₹", "USD" → "$", "EUR" → "€".  
               - If the symbol is missing or unrecognized, return "".
             - **Details**:
-              - "food": **only** Extract restaurant name.**no other information**
-              - "flight"/"cab": Extract **only "From: <location> - To: <location>"**.
+              - "food": **only** Extract restaurant name.**Return only** name nothing else
+              - "flight"/"cab": Extract **"From: <location> - To: <location>"**.**Return only** specific address not full address only important one. 
               - If missing, return "".
 
             Examples:
@@ -329,7 +329,7 @@ if uploaded_file:
                         structured_data["Currency Name"] = currency
 
                         # Format "From - To" for flight or cab bills
-                        if structured_data["Bill Type"] in ["flight", "cab"]:
+                        if "Bill Type" in structured_data and structured_data["Bill Type"] in ["flight", "cab"]:
                             details = structured_data.get("Details", "")
                             if "from" in details.lower() and "to" in details.lower():
                                 from_to_match = re.search(r"from\s*:\s*(.*?)\s*-\s*to\s*:\s*(.*)", details,
