@@ -57,6 +57,13 @@ def extract_text_from_image(image_path):
 
     return extracted_text
 
+def get_exchange_rate():
+    url = "https://v6.exchangerate-api.com/v6/0c301cab691bf1fa55cc981e/latest/USD"  # Replace with your API URL
+    response = requests.get(url)
+    data = response.json()
+    return data["conversion_rates"]["INR"]  # Extract USD to INR rate
+
+USD_TO_INR_RATE = get_exchange_rate()
 
 # Function to process extracted text using Hugging Face LLM with refined prompt
 def process_text_with_huggingface(text):
@@ -75,84 +82,73 @@ def process_text_with_huggingface(text):
             - "Currency Name": Extract currency code (e.g., USD, INR, EUR) or infer from symbols (e.g., $ → USD, ₹ → INR). 
               - should **not include** any other number or alphabet other than currency symbol
               - If unavailable, return "".
-           - "Bill Amount": Extract as **<currency symbol><amount>** (e.g., $25, ₹500). 
+            - "Bill Amount": Extract as **<currency symbol><amount>** (e.g., $25, ₹500). 
               - Include symbol if present; otherwise, return numeric amount only (e.g., 25). 
               - **Do not include any other characters, numbers, or alphabets.**
               - Convert codes like "INR" → "₹", "USD" → "$", "EUR" → "€".  
               - If the symbol is missing or unrecognized, return "".
+            - **Bill Amount (INR)**:
+              - Convert all currency values to INR.
+              - If the bill is in **USD**, convert it to INR using the current exchange rate.
+              - If already in INR, keep the value as is.
+              - If the currency is **not USD or INR**, return "".
             - **Details**:
               - "food": **only** Extract restaurant name.**Return only** name nothing else
               - "flight"/"cab": Extract **"From: <location> - To: <location>"**.**Return only** specific address not full address only important one. 
               - If missing, return "".
 
-            Examples:
+            ### Example:
             Example Input:
-           ```
-           Bill: XYZ Restaurant  
-           Date: January 5, 2024  
-           Time: 15:45 PM  
-           Type: Meal  
-           Amount: 500 INR  
-           ```
-           Expected JSON Output:
-           ```json
-           {{
-               "Date": "05/01/2024",
-               "Time": "03:45",
-               "Time (AM/PM)": "PM",
-               "Bill Type": "food",
-               "Currency Name": "INR",
-               "Bill Amount": "₹ 500",
-               "Details": "XYZ Restaurant"
-           }}
-           Example Input:
-           ```
-           Bill: Airline Ticket
-           Date: 2024-03-10
-           Time: 22:15
-           Amount: €120
-           Departure: London Heathrow
-           Arrival: Paris CDG
-           '''
-           Expected JSON Output:
-           ```json
-           {{
-            "Date": "10/03/2024",
-            "Time": "10:15",
-            "Time (AM/PM)": "PM",
-            "Bill Type": "flight",
-            "Currency Name": "EUR",
-            "Bill Amount": "€120",
-            "Details": "From: London Heathrow - To: Paris CDG"
+            ```
+            Bill: XYZ Restaurant  
+            Date: January 5, 2024  
+            Time: 15:45 PM  
+            Type: Meal  
+            Amount: 500 INR  
+            ```
+            Expected JSON Output:
+            ```json
+            {{
+                "Date": "05/01/2024",
+                "Time": "03:45",
+                "Time (AM/PM)": "PM",
+                "Bill Type": "food",
+                "Currency Name": "INR",
+                "Bill Amount": "₹500",
+                "Bill Amount (INR)": "₹500",
+                "Details": "XYZ Restaurant"
             }}
-           Example Input:
-           ```
-           Bill: Uber Ride  
-           Date: 12-02-2024  
-           Time: 08:30 AM  
-           Type: Cab Fare  
-           Amount: $25  
-           From: Downtown  
-           To: Airport  
-           ```
+            ```
 
-           Expected JSON Output:
-           ```json
-           {{
-               "Date": "12/02/2024",
-               "Time": "08:30",
-               "Time (AM/PM)": "AM",
-               "Bill Type": "cab",
-               "Currency Name": "USD",
-               "Bill Amount": "$25",
-               "Details": "From: Downtown - To: Airport"
-           }}
-           ```
-           ### Bill Text:
-           {text}
+            Example Input:
+            ```
+            Bill: Uber Ride  
+            Date: 12-02-2024  
+            Time: 08:30 AM  
+            Type: Cab Fare  
+            Amount: $25  
+            From: Downtown  
+            To: Airport  
+            ```
+            Expected JSON Output:
+            ```json
+            {{
+                "Date": "12/02/2024",
+                "Time": "08:30",
+                "Time (AM/PM)": "AM",
+                "Bill Type": "cab",
+                "Currency Name": "USD",
+                "Bill Amount": "$25",
+                "Bill Amount (INR)": "₹{round(25 *  USD_TO_INR_RATE , 2)}",
+                "Details": "From: Downtown - To: Airport"
+            }}
+            ```
 
-           ### JSON Output:
-           """,
+            ### Bill Text:
+            {text}
+
+            ### JSON Output:
+            """,
         "parameters": {"return_full_text": False}
     }
 
@@ -320,13 +316,25 @@ if uploaded_file:
                     structured_data = process_text_with_huggingface(extracted_text)
                     if structured_data:
 
-                        # Separate currency from Bill Amount
-                        bill_amount = structured_data.get("Bill Amount", "")
-                        currency = bill_amount[0] if bill_amount else ""
-                        structured_data["Bill Amount"] = bill_amount[1:].strip() if bill_amount else ""
+                        # Replace currency symbol with currency name
+                        currency_symbols = {
+                            "$": "USD",
+                            "₹": "INR",
+                            "€": "EUR",
+                            "£": "GBP",
+                            "¥": "JPY",
+                            "₩": "KRW"
+                        }
 
-                        # Add currency name dynamically
-                        structured_data["Currency Name"] = currency
+                        # Extract currency symbol and convert to currency name
+                        bill_amount = structured_data.get("Bill Amount", "")
+                        currency_symbol = bill_amount[0] if bill_amount and bill_amount[0] in currency_symbols else ""
+                        structured_data["Currency Name"] = currency_symbols.get(currency_symbol, "")
+
+                        # Remove the symbol from the Bill Amount value
+                        structured_data["Bill Amount"] = bill_amount[1:].strip() if currency_symbol else bill_amount
+
+                        extracted_data.append(structured_data)
 
                         # Format "From - To" for flight or cab bills
                         if "Bill Type" in structured_data and structured_data["Bill Type"] in ["flight", "cab"]:
@@ -338,7 +346,7 @@ if uploaded_file:
                                     structured_data[
                                         "Details"] = f"From: {from_to_match.group(1).strip()} - To: {from_to_match.group(2).strip()}"
 
-                        extracted_data.append(structured_data)
+                            extracted_data.append(structured_data)
 
             # Display results
             if extracted_data:
