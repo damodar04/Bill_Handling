@@ -31,7 +31,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_key.json"
 client = vision.ImageAnnotatorClient()
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY = "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"
+HUGGINGFACE_API_KEY = "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"
 
 # Define unwanted keywords to ignore instructional images
 UNWANTED_KEYWORDS = ["instructions", "terms", "guidelines", "help", "support", "important"]
@@ -58,7 +58,7 @@ def extract_text_from_image(image_path):
     return extracted_text
 
 def get_exchange_rate():
-    url = "https://v6.exchangerate-api.com/v6/0c301cab691bf1fa55cc981e/latest/USD"  # Replace with your API URL
+    url = "https://v6.exchangerate-api.com/v6/0c301cab691bf1fa55cc/latest/USD"  # Replace with your API URL
     response = requests.get(url)
     data = response.json()
     return data["conversion_rates"]["INR"]  # Extract USD to INR rate
